@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>/* auto-refresh when a newer version is published */
+(function(){var V="1";fetch("../../version.txt?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(v){v=v.trim();if(v&&v!==V){var k="fraud_reload_"+v;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,1)}catch(e){}location.reload()}}).catch(function(){})})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Broken Vase — Fraud Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../fraud.css?v=1">
+<script src="../../vendor/supabase.js?v=1"></script>
+<script src="../../config.js?v=1"></script>
+<script src="../../fraud.js?v=1"></script>
+<script src="model.js?v=1"></script>
+<style>
+  .page{max-width:620px;margin:0 auto;padding:14px}
+  .seq{width:100%;font:600 17px/1.5 ui-monospace,Menlo,Consolas,monospace;letter-spacing:1px;text-transform:uppercase;resize:vertical}
+  .cnt{font-weight:700;font-variant-numeric:tabular-nums}
+  .cnt.good{color:var(--good)} .cnt.bad{color:var(--bad)}
+  .keys{display:flex;gap:8px;margin:10px 0}
+  .keys button{flex:1;font-size:18px;padding:12px 0}
+  .keys button.h{background:var(--h)} .keys button.t{background:var(--t);color:#4a3600}
+  .keys button.u{flex:.7;background:transparent;color:var(--ink);border:1px solid var(--rule);font-size:14px}
+  .cells{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin:10px 0}
+  .cell{aspect-ratio:1;border-radius:6px;border:1.5px dashed var(--rule);display:flex;align-items:center;justify-content:center;font:700 14px ui-monospace,Menlo,monospace;
+        user-select:none;cursor:pointer;color:#fff;-webkit-tap-highlight-color:transparent}
+  .cell.h{background:var(--h);border:1.5px solid var(--h)} .cell.t{background:var(--t);border:1.5px solid var(--t);color:#4a3600}
+  .cell.next{border-color:var(--ink);border-style:solid}
+  .opt{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1.5px solid var(--rule);border-radius:10px;margin:8px 0;cursor:pointer;color:var(--ink);font-size:15px;font-weight:500}
+  .opt input{width:auto;margin-top:4px}
+  .opt:has(input:checked){border-color:var(--green);background:var(--soft)}
+  .story{border-left:5px solid var(--gold);background:var(--goldsoft);padding:12px 16px;border-radius:8px}
+  .story p{margin:0 0 8px} .story p:last-child{margin:0}
+  .steps{margin:0;padding-left:20px} .steps li{margin-bottom:6px}
+  .conf{background:#eef8f1;border:1px solid var(--good);border-radius:10px;padding:12px 14px}
+  .strip{display:flex;gap:2px;margin:8px 0}
+  .strip i{flex:1 1 0;min-width:0;height:20px;border-radius:3px;background:var(--h)} .strip i.t{background:var(--t)}
+  .verdict{font-size:18px;padding:12px 14px;border-radius:10px;margin:10px 0}
+  .verdict.good{background:#eef8f1;border:1px solid var(--good)} .verdict.bad{background:#fbeceb;border:1px solid var(--bad)} .verdict.none{background:var(--soft);border:1px solid var(--rule)}
+  .dbtn{background:transparent;color:var(--muted);border:1px dashed var(--rule);font-size:12px;padding:4px 10px}
+</style>
+</head>
+<body>
+<div class="topbar"><a class="brand" href="../../">Fraud Analytics <small>Game 1 · The Broken Vase</small></a><span class="who" id="who"></span></div>
+<div class="page">
+  <div id="demoBanner" class="demo hidden">Demo mode: nothing is saved. <a href="#" id="demoReset">Start over</a> · <button class="dbtn" id="demoRevealBtn">Simulate the instructor's reveal</button></div>
+
+  <section id="gJoin" class="card hidden" style="margin-top:24px">
+    <h2>🏺 The Broken Vase</h2>
+    <p class="muted small">Can you tell a real coin toss from one made up by hand? Join your class session to play.</p>
+    <label for="gCode">Session code</label><input id="gCode" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase">
+    <label for="gNick">Nickname (optional: leave blank to stay anonymous)</label><input id="gNick" maxlength="40" autocomplete="off">
+    <button id="gBtnJoin" class="full" style="margin-top:14px">Join</button>
+    <div class="err" id="gJoinErr"></div>
+  </section>
+
+  <section id="gMain" class="hidden">
+    <div class="card story">
+      <h2 style="margin:0 0 8px">🏺 The Broken Vase</h2>
+      <p>You are a toddler, and you just broke mom's favorite vase. To teach you a lesson, mom gives you a task: <b>toss a coin <span class="N">50</span> times</b> and write down H (heads) or T (tails) each time.</p>
+      <p>After a few tosses, mom goes off to do chores. You get bored, and you start just writing H and T "randomly" yourself, from your head.</p>
+      <p>Mom comes back, looks at your list, and says: <b>"You cheated."</b> How did she know?</p>
+    </div>
+
+    <div id="vInput">
+      <div class="card">
+        <h3>Your task</h3>
+        <ol class="steps">
+          <li>On paper (or in your head), create <b>two</b> sequences of <span class="N">50</span> flips:
+            <ul style="margin:4px 0"><li><b>Real:</b> toss a real coin <span class="N">50</span> times (or use a random generator, such as the button below).</li><li><b>Made up:</b> write <span class="N">50</span> H/T that look random, from your head, without a coin.</li></ul></li>
+          <li><b>Submit only ONE of them.</b> Don't tell your instructor, or your neighbors, which one.</li>
+          <li>Your instructor will try to guess which are real and which are made up.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h3>Your sequence</h3>
+        <label for="seq" style="margin-top:0">Type or paste <span class="N">50</span> symbols: H/T or 1/0. Spaces, commas and new lines are ignored.</label>
+        <textarea id="seq" class="seq" rows="3" placeholder="HTTHH THTHT ..." autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false"></textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="cnt" id="cnt">0/50</span><span class="small" id="msg"></span></div>
+        <div class="keys"><button class="h" id="kH" type="button">H</button><button class="t" id="kT" type="button">T</button><button class="u" id="kU" type="button">⌫ Undo</button><button class="u" id="kC" type="button">Clear</button></div>
+        <div class="small muted">Or tap the boxes: tap the next empty box to add H; tap a filled box to flip it between H and T.</div>
+        <div class="cells" id="cells"></div>
+        <hr style="border:0;border-top:1px solid var(--rule);margin:14px 0">
+        <button class="ghost full" id="gen" type="button">🎲 Generate a random sequence for me</button>
+        <div class="small muted" style="margin-top:4px">For students without a coin. It <b>fills the box above</b> with truly random flips (from your device's random number generator). If you submit it, choose "Real" below.</div>
+      </div>
+
+      <div class="card">
+        <h3>Is this sequence real or made up?</h3>
+        <p class="small muted" style="margin:0 0 6px">Private. Your instructor will <b>NOT</b> see your answer until the reveal.</p>
+        <label class="opt"><input type="radio" name="truth" value="real"><span><b>Real</b><br><span class="small muted">from a coin or a random generator</span></span></label>
+        <label class="opt"><input type="radio" name="truth" value="fake"><span><b>Made up by me</b><br><span class="small muted">invented by hand, no coin</span></span></label>
+        <button class="full" id="sub" style="margin-top:10px" disabled>Submit</button>
+        <div class="err" id="err"></div>
+        <div class="small muted" id="why"></div>
+      </div>
+    </div>
+
+    <div id="vDone" class="card hidden">
+      <div class="conf"><b>✔ Submitted.</b> <span id="doneInfo"></span><br>
+        <span class="small">Your instructor will try to guess whether it is real. You can change your sequence until the reveal. Keep this page open: the results will appear here.</span></div>
+    </div>
+
+    <div id="vResult" class="hidden"></div>
+  </section>
+</div>
+
+<script>
+const $ = FRAUD.$, C = COINFLIP;
+let st = null, N = C.DEFAULTS.n, poll = null;
+
+FRAUD.setup({ game: "coinflip", defaults: C.DEFAULTS });
+$("gBtnJoin").onclick = join;
+$("gNick").addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
+$("demoReset").onclick = (e) => { e.preventDefault(); FRAUD.forget(); location.reload(); };
+$("demoRevealBtn").onclick = async () => { FRAUD.demoReveal(); await refresh(); };
+init();
+
+async function init() {
+  if (FRAUD.DEMO) $("demoBanner").classList.remove("hidden");
+  $("gCode").value = FRAUD.urlCode() || (FRAUD.DEMO ? "DEMO" : "");
+  const s = FRAUD.saved(), want = FRAUD.urlCode();
+  let state = null;
+  if (s && (!want || s.code === want)) state = await FRAUD.resume();
+  if (state) load(state);
+  else { show("gJoin"); (want ? $("gNick") : $("gCode")).focus(); }
+}
+function show(id) { ["gJoin", "gMain"].forEach((s) => $(s).classList.toggle("hidden", s !== id)); window.scrollTo(0, 0); }
+async function join() {
+  $("gJoinErr").textContent = ""; $("gBtnJoin").disabled = true;
+  try { load(await FRAUD.join($("gCode").value.trim(), $("gNick").value.trim())); }
+  catch (e) { $("gJoinErr").textContent = e.message; }
+  finally { $("gBtnJoin").disabled = false; }
+}
+
+// ---------------------------------------------------------------- main page
+function load(state) {
+  st = state; N = Number((st.session.params || {}).n) || C.DEFAULTS.n;
+  $("who").textContent = st.nickname + " · " + st.session.code;
+  document.querySelectorAll(".N").forEach((e) => e.textContent = N);
+  show("gMain"); buildCells();
+  const mine = mySub();
+  if (mine && mine.data && mine.data.seq) { $("seq").value = C.grouped(mine.data.seq); const r = document.querySelector(`input[name=truth][value=${mine.label}]`); if (r) r.checked = true; }
+  update(); paint();
+  clearInterval(poll);
+  poll = setInterval(refresh, 4000);
+}
+async function refresh() {
+  if (!st || document.hidden && !FRAUD.DEMO) return;
+  try { const s = await FRAUD.rpc("fraud_resume", { p_player: st.player_id, p_token: st.token }); const was = st.session.revealed; st = s; if (s.session.revealed !== was || s.session.revealed) paint(); }
+  catch (_) { /* transient network error: try again on the next tick */ }
+}
+const mySub = () => (st.submissions || []).find((s) => s.kind === "main") || null;
+
+// show the input form, or the results after the reveal
+function paint() {
+  const revealed = st.session.revealed, mine = mySub();
+  $("vInput").classList.toggle("hidden", revealed);
+  $("vDone").classList.toggle("hidden", revealed || !mine);
+  $("vResult").classList.toggle("hidden", !revealed);
+  $("sub").textContent = mine ? "Update my submission" : "Submit";
+  if (mine) $("doneInfo").textContent = "Saved at " + new Date(mine.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + ".";
+  if (revealed) { clearInterval(poll); $("vResult").innerHTML = resultHtml(mine); }
+}
+
+function resultHtml(mine) {
+  if (!mine) return `<div class="card"><h2>The instructor has revealed the results</h2><p>You did not submit a sequence before the reveal, so there is nothing to show for you. Follow along with the class discussion.</p></div>`;
+  const bits = mine.data.seq, s = C.stats(bits), sim = C.simulate(N, 5000);
+  const said = mine.label === "real" ? "Real" : "Made up";
+  let verdict;
+  if (mine.guess !== "real" && mine.guess !== "fake") verdict = `<div class="verdict none">Your instructor did not make a guess about your sequence.</div>`;
+  else { const ok = mine.guess === mine.label, g = mine.guess === "real" ? "Real" : "Made up";
+    verdict = ok ? `<div class="verdict good">✓ Your instructor guessed <b>${g}</b>: <b>correct</b>.</div>` : `<div class="verdict bad">✗ Your instructor guessed <b>${g}</b>: <b>wrong</b>. You fooled them!</div>`; }
+  return `<div class="card"><h2>Your result</h2>
+    <p class="small muted" style="margin:0">You said your sequence was: <b>${said}</b></p>
+    <div class="strip">${bits.split("").map((b) => `<i class="${b === "1" ? "" : "t"}"></i>`).join("")}</div>
+    <div class="mono small" style="word-break:break-all">${C.grouped(bits)}</div>
+    ${verdict}
+    <table style="margin-top:8px"><tr><th>Measure</th><th>Yours</th><th>Fair coin (typical)</th></tr>
+      <tr><td>Longest run (same symbol in a row)</td><td><b>${s.longest}</b></td><td>about ${sim.meanLongest.toFixed(1)}; ${Math.round(sim.pAtLeast(5) * 100)}% of the time at least 5</td></tr>
+      <tr><td>Number of runs</td><td><b>${s.runs}</b></td><td>about ${(1 + (N - 1) / 2).toFixed(1)}</td></tr>
+      <tr><td>Switches (H→T or T→H)</td><td><b>${s.switches}</b></td><td>about ${((N - 1) / 2).toFixed(1)}</td></tr>
+      <tr><td>Switch rate (switches ÷ ${N - 1})</td><td><b>${s.switchRate.toFixed(2)}</b></td><td>about 0.50</td></tr></table>
+    <p class="small muted" style="margin-bottom:0">People who invent a sequence tend to switch too often (around 0.6) and avoid long runs. A real coin often produces streaks of 5 or more. Your instructor will explain in class how the guesses were made.</p></div>`;
+}
+
+// ---------------------------------------------------------------- input
+function cur() { return C.normalize($("seq").value); }
+function setBits(bits) { $("seq").value = C.grouped(bits); update(); }
+function buildCells() {
+  $("cells").innerHTML = Array.from({ length: N }, (_, i) => `<div class="cell" role="button" tabindex="0" data-i="${i}" aria-label="flip ${i + 1}"></div>`).join("");
+  $("cells").querySelectorAll(".cell").forEach((c) => {
+    const act = () => { const i = Number(c.dataset.i), b = cur().bits.slice(0, N);
+      if (i < b.length) setBits(b.slice(0, i) + (b[i] === "1" ? "0" : "1") + b.slice(i + 1));
+      else if (i === b.length) setBits(b + "1"); };
+    c.onclick = act; c.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(); } };
+  });
+}
+function update() {
+  const { bits, bad } = cur(), n = bits.length, ok = n === N && !bad;
+  const cnt = $("cnt"); cnt.textContent = `${n}/${N}`; cnt.className = "cnt " + (ok ? "good" : n > N || bad ? "bad" : "");
+  $("msg").className = "small " + (n > N || bad ? "err" : "muted");
+  $("msg").textContent = bad ? `${bad} unrecognized character${bad > 1 ? "s" : ""} (use H, T, 1 or 0)` : n > N ? `${n - N} too many. Delete some.` : n < N ? `${N - n} to go` : "Length is right.";
+  $("cells").querySelectorAll(".cell").forEach((c, i) => {
+    c.className = "cell" + (i < n ? (bits[i] === "1" ? " h" : " t") : i === n ? " next" : "");
+    c.textContent = i < n ? (bits[i] === "1" ? "H" : "T") : "";
+  });
+  const truth = document.querySelector("input[name=truth]:checked");
+  $("sub").disabled = !(ok && truth);
+  $("why").textContent = ok && truth ? "" : !ok ? `Enter exactly ${N} flips to submit.` : "Choose whether the sequence is real or made up.";
+}
+$("seq").addEventListener("input", update);
+document.querySelectorAll("input[name=truth]").forEach((r) => r.addEventListener("change", update));
+$("kH").onclick = () => { const b = cur().bits; if (b.length < N) setBits(b + "1"); else update(); };
+$("kT").onclick = () => { const b = cur().bits; if (b.length < N) setBits(b + "0"); else update(); };
+$("kU").onclick = () => setBits(cur().bits.slice(0, -1));
+$("kC").onclick = () => { $("seq").value = ""; update(); };
+$("gen").onclick = () => {
+  if (cur().bits.length && !confirm("Replace what you typed with a random sequence?")) return;
+  setBits(C.randomBits(N)); $("err").textContent = "";
+};
+$("sub").onclick = async () => {
+  const { bits, bad } = cur(), truth = document.querySelector("input[name=truth]:checked");
+  if (bits.length !== N || bad || !truth) return update();
+  $("sub").disabled = true; $("err").textContent = "";
+  try { st = await FRAUD.submit(st, "main", { seq: bits }, truth.value); paint(); $("vDone").scrollIntoView({ behavior: "smooth", block: "center" }); }
+  catch (e) { $("err").textContent = e.message; if (/revealed|locked/i.test(e.message)) refresh(); }
+  finally { update(); }
+};
+</script>
+</body>
+</html>

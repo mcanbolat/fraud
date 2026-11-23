@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>/* auto-refresh when a newer version is published */
+(function(){var V="1";fetch("version.txt?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(v){v=v.trim();if(v&&v!==V){var k="fraud_reload_"+v;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,1)}catch(e){}location.reload()}}).catch(function(){})})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fraud Analytics Games — SUNY Brockport</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="fraud.css?v=1">
+<script src="games.js?v=1"></script>
+<style>
+  .hero{background:linear-gradient(135deg,var(--green) 0%,#0d3d31 100%);color:#fff;padding:42px 20px 36px}
+  .hero .in{max-width:1100px;margin:0 auto}
+  .hero h1{font-size:40px;margin:0 0 8px}
+  .hero p{max-width:640px;opacity:.9;margin:0}
+  .hero .join{margin-top:20px;display:flex;gap:8px;max-width:420px}
+  .hero .join input{font-size:17px;text-transform:uppercase;letter-spacing:1px}
+  .games{max-width:1100px;margin:0 auto;padding:24px 20px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .tile{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:16px;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;gap:6px;transition:transform .12s,box-shadow .12s}
+  a.tile:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.08);border-color:var(--green)}
+  .tile .ch{font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.8px}
+  .tile h3{margin:0;font-size:19px}
+  .tile p{margin:0;font-size:14px;color:var(--muted)}
+  .tile.soon{opacity:.6}
+  .tile .st{margin-top:auto;font-size:12px;font-weight:600}
+  footer{max-width:1100px;margin:0 auto;padding:10px 20px 40px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand">Fraud Analytics <small>SUNY Brockport</small></span><a href="admin.html" style="color:#fff;font-size:13px">Instructor</a></div>
+<div class="hero"><div class="in">
+  <h1>Learn to spot made-up data.</h1>
+  <p>Short classroom games for the Fraud Analytics course. You play on your phone, and the class results are used for discussion. Got a session code from class? Enter it here.</p>
+  <div class="join"><input id="code" placeholder="Session code" autocomplete="off"><button class="gold" id="go">Go</button></div>
+  <div class="err" id="err" style="color:#ffd0c8"></div>
+</div></div>
+<div class="games"><div class="tiles" id="tiles"></div></div>
+<footer>Your instructor sees the nickname you choose (or an anonymous name if you leave it blank). Session codes are given in class.</footer>
+<script>
+const cat = window.FRAUD_CATALOG;
+const prefixes = Object.fromEntries(cat.filter(g => g.status === "live" && g.prefix).map(g => [g.prefix, g.key]));   // code prefix → game
+document.getElementById("tiles").innerHTML = cat.map(g => g.status === "live"
+  ? `<a class="tile" href="games/${g.key}/"><span class="ch">${g.num} · ${g.topic}</span><h3>${g.title}</h3><p>${g.blurb}</p><span class="st ok">▶ Play</span></a>`
+  : `<div class="tile soon"><span class="ch">${g.num} · ${g.topic}</span><h3>${g.title}</h3><p>${g.blurb}</p><span class="st muted">Coming soon</span></div>`).join("");
+function go() {
+  const c = document.getElementById("code").value.trim().toUpperCase(); if (!c) return;
+  const pre = Object.keys(prefixes).find(p => c.startsWith(p));
+  if (pre) location.href = `games/${prefixes[pre]}/?code=${encodeURIComponent(c)}`;
+  else document.getElementById("err").textContent = "Not sure which game that code is for. Open the game from the list below and enter the code there.";
+}
+document.getElementById("go").onclick = go;
+document.getElementById("code").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+</script>
+</body>
+</html>
