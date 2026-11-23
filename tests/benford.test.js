@@ -38,3 +38,14 @@ const bn = B.bunching([4000, 4999, 5000, 6000], 5000); assert.strictEqual(bn.cou
 // growth
 const g = B.growth(0.12); near(g.total, Math.log(10) / Math.log(1.12), 1e-9); near(g.rows[0].share, 0.30103, 1e-5); near(g.rows.reduce((s, x) => s + x.share, 0), 1, 1e-9);
 console.log("benford tests ok");
+// last-digit expectation: k-th digit Benford law weighted by number length
+{
+  const near2 = (a, b, t) => { if (Math.abs(a - b) > t) throw new Error(a + " vs " + b); };
+  assert.strictEqual(B.lastPos(4580), 4); assert.strictEqual(B.lastPos(12.37), 4); assert.strictEqual(B.lastPos(9), null);
+  near2(B.kthDigitProb(2, 0), B.TESTS.second.expected(0), 1e-12);
+  for (const k of [2, 3, 4, 5]) { let s = 0; for (let d = 0; d < 10; d++) s += B.kthDigitProb(k, d); near2(s, 1, 1e-9); }
+  const e2 = B.lastExpected([12, 34, 56]); near2(e2[0], B.TESTS.second.expected(0), 1e-12);
+  const e4 = B.lastExpected([1234, 5678]); near2(e4[0], 0.1, 0.0005);
+  const a = B.analyze([10, 11, 12, 1234], "last"); let s = 0; a.expected.forEach((x) => s += x); near2(s, 1, 1e-9);
+}
+console.log("last-digit expectation tests ok");

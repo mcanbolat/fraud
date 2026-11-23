@@ -38,13 +38,41 @@
     return +s[s.length - 1];
   }
 
+  // Position of the last digit = number of significant-digit places up to the last one shown
+  // (4,580 -> 4; 12.37 -> 4). Used to weight the Benford k-th digit law for the last-digit test.
+  function lastPos(x) {
+    x = Math.abs(x); if (!isFinite(x) || x < 10) return null;
+    const s = Number.isInteger(x) ? String(x) : String(Number(x.toPrecision(12)));
+    if (/e/i.test(s)) return null;
+    return s.replace(".", "").replace(/^0+/, "").length;
+  }
+  // Benford probability that the k-th significant digit equals d (k >= 2). Exact for k <= 5,
+  // uniform beyond (the deviation is below 0.0001).
+  const KTH = {};
+  function kthDigitProb(k, d) {
+    if (k > 5) return 0.1;
+    const key = k + ":" + d; if (KTH[key] != null) return KTH[key];
+    let s = 0; const lo = Math.pow(10, k - 2), hi = Math.pow(10, k - 1);
+    for (let j = lo; j < hi; j++) s += Math.log10(1 + 1 / (10 * j + d));
+    return (KTH[key] = s);
+  }
+  // Expected last-digit shares for a given dataset: mix of k-th digit laws by number length.
+  function lastExpected(values) {
+    const w = {}; let n = 0;
+    for (const v of values) { const k = lastPos(v); if (k == null) continue; w[k] = (w[k] || 0) + 1; n++; }
+    const e = new Array(10).fill(0);
+    if (!n) return e.map(() => 0.1);
+    for (const k in w) for (let d = 0; d < 10; d++) e[d] += (w[k] / n) * kthDigitProb(+k, d);
+    return e;
+  }
+
   const log10 = Math.log10;
   const TESTS = {
     first:  { id: "first",  name: "First digit",      lo: 1,  hi: 9,  fn: firstDigit, thr: [0.006, 0.012, 0.015], expected: (d) => log10(1 + 1 / d) },
     second: { id: "second", name: "Second digit",     lo: 0,  hi: 9,  fn: secondDigit, thr: [0.008, 0.010, 0.012],
               expected: (d) => { let s = 0; for (let k = 1; k <= 9; k++) s += log10(1 + 1 / (10 * k + d)); return s; } },
     two:    { id: "two",    name: "First two digits", lo: 10, hi: 99, fn: firstTwo, thr: [0.0012, 0.0018, 0.0022], expected: (d) => log10(1 + 1 / d) },
-    last:   { id: "last",   name: "Last digit",       lo: 0,  hi: 9,  fn: lastDigit, thr: null, expected: () => 0.1 }
+    last:   { id: "last",   name: "Last digit",       lo: 0,  hi: 9,  fn: lastDigit, thr: null, expected: () => 0.1, expectedFor: lastExpected }
   };
   const VERDICTS = ["Close conformity", "Acceptable conformity", "Marginally acceptable conformity", "Nonconformity"];
   function verdict(test, mad) {
@@ -94,9 +122,10 @@
       counts[d - T.lo]++; n++;
     }
     const digits = [], expected = [], props = [], z = [];
+    const expFor = T.expectedFor ? T.expectedFor(values) : null;
     let chi2 = 0;
     for (let i = 0; i < k; i++) {
-      const d = T.lo + i, e = T.expected(d), p = n ? counts[i] / n : 0;
+      const d = T.lo + i, e = expFor ? expFor[i] : T.expected(d), p = n ? counts[i] / n : 0;
       digits.push(d); expected.push(e); props.push(p); z.push(zStat(p, e, n));
       if (n) chi2 += (counts[i] - n * e) ** 2 / (n * e);
     }
@@ -218,7 +247,7 @@
     return out;
   }
 
-  const API = { parseNum, firstDigit, secondDigit, firstTwo, lastDigit, TESTS, VERDICTS, verdict, gammaQ, chiSqP, zStat, mad, analyze,
+  const API = { parseNum, firstDigit, secondDigit, firstTwo, lastDigit, lastPos, kthDigitProb, lastExpected, TESTS, VERDICTS, verdict, gammaQ, chiSqP, zStat, mad, analyze,
                 seeded, randomSeed, scale, uniformData, roundTo, thresholdInflate, bunching, inventNumber, fabricate, growth,
                 parseDelimited, parseTable, clean, parseCensus };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.BENFORD = API;
