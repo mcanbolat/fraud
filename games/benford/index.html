@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>/* auto-refresh when a newer version is published */
+(function(){var V="2";fetch("../../version.txt?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(v){v=v.trim();if(v&&v!==V){var k="fraud_reload_"+v;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,1)}catch(e){}location.reload()}}).catch(function(){})})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benford's Law — Fraud Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../fraud.css?v=2">
+<script src="../../vendor/chart.umd.min.js?v=2"></script>
+<script src="benford.js?v=2"></script>
+<style>
+  .page{max-width:1100px;margin:0 auto;padding:16px 20px}
+  .row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+  .row>div{flex:1 1 180px;min-width:150px}
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 12px}
+  .tabs button{background:transparent;color:var(--ink);border:1px solid var(--rule)}
+  .tabs button.on{background:var(--green);color:#fff;border-color:var(--green)}
+  .chart{position:relative;height:340px}
+  .chart.sm{height:280px}
+  .tw{max-height:320px;overflow:auto;margin-top:10px}
+  .tw th{position:sticky;top:0;background:#fff}
+  .vd{font-size:20px;font-weight:700;padding:10px 14px;border-radius:10px;margin:8px 0;border:1px solid var(--rule);background:var(--soft)}
+  .vd.c0{background:#e3f3ea;border-color:var(--good)} .vd.c1{background:#eef6e0;border-color:#8aae3a}
+  .vd.c2{background:#fdf1d3;border-color:var(--gold)} .vd.c3{background:#fbeceb;border-color:var(--bad)}
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  input[type=range]{padding:0;border:0}
+  input[type=checkbox],input[type=radio]{width:auto}
+  .inl{display:flex;gap:6px;align-items:center;margin:0;font-size:14px;color:var(--ink)}
+  details{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:12px 18px;margin-bottom:16px}
+  details summary{cursor:pointer;font-weight:700;font-family:"Fraunces",Georgia,serif;font-size:18px}
+  details p{margin:8px 0}
+  .kpi .v{font-size:22px}
+  .seedbar{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+  @media (min-width:1000px){.kpi .v{font-size:26px} .chart{height:380px}}
+</style>
+</head>
+<body>
+<div class="topbar"><a class="brand" href="../../">Fraud Analytics <small>Benford's Law</small></a>
+  <span class="seedbar" style="color:#fff">Seed <b id="seedv" class="mono"></b> <button class="gold sm" id="reshuffle" title="New random seed for simulated and tampered data">Reshuffle</button></span></div>
+<div class="page">
+
+<!-- 1. DATA -->
+<section class="card">
+  <h2>1. Choose the data</h2>
+  <div class="row">
+    <div><label for="dsSel">Dataset</label><select id="dsSel"><option value="census">US Census population counts</option><option value="own">Paste your own numbers</option></select></div>
+    <div class="cen"><label for="colSel">Column</label><select id="colSel"><option value="pop2010">Census 2010 count</option><option value="pop2017">Estimate 2017</option></select></div>
+    <div class="cen"><label for="lvlSel">Geography level</label><select id="lvlSel">
+      <option value="all">All rows</option><option value="162">Incorporated places (162)</option><option value="061">Towns / MCDs (061)</option><option value="050">Counties (050)</option><option value="040">States (040)</option></select></div>
+    <div class="cen"><label for="stSel">State</label><select id="stSel"><option value="">All states</option></select></div>
+  </div>
+  <div class="own hidden">
+    <label for="ownTxt">Paste numbers (one per line) or a table with a header row (comma, tab or semicolon separated)</label>
+    <textarea id="ownTxt" rows="5" placeholder="1234&#10;5678&#10;..."></textarea>
+    <div class="row"><div><label for="ownFile">...or upload a CSV / text file</label><input type="file" id="ownFile" accept=".csv,.txt,.tsv,text/*"></div>
+      <div class="ownCol hidden"><label for="ownColSel">Numeric column</label><select id="ownColSel"></select></div></div>
+  </div>
+  <p class="small" style="margin:10px 0 0"><b id="nUsed">Loading data...</b> <span class="muted" id="exNote"></span></p>
+  <p class="small muted cen" style="margin:4px 0 0">Source: US Census Bureau subcounty population estimates (sub-est2017_all). "All rows" mixes geography levels, so some places are counted more than once (for example a city and its place-part within a county). That is fine for a digit test, but pick a single level for a clean count.</p>
+  <div class="err" id="loadErr"></div>
+</section>
+
+<!-- 2. DIGIT TEST -->
+<section class="card">
+  <h2>2. Digit tests</h2>
+  <div class="tabs" id="tabs">
+    <button data-t="first" class="on">First digit</button><button data-t="second">Second digit</button>
+    <button data-t="two">First two digits</button><button data-t="last">Last digit</button></div>
+  <p class="small muted" id="testDesc"></p>
+  <div class="kpis" id="kpis"></div>
+  <div id="vd" class="vd"></div>
+  <div class="chart"><canvas id="chMain"></canvas></div>
+  <div class="tw scroll"><table id="tbl"></table></div>
+  <p class="small muted">z is Nigrini's statistic with continuity correction; |z| &gt; 1.96 (shaded) is a 5% flag for that digit. With tens of thousands of rows the chi-square test rejects even tiny gaps, so judge conformity by MAD (mean absolute deviation) and the chart, not the p-value alone.</p>
+</section>
+
+<!-- 3. SCALE -->
+<section class="card">
+  <h2>3. Once a Benford, always a Benford</h2>
+  <p class="small muted">Multiply every number by a constant (a change of units, currency or "in thousands") and re-test the first digit. Real Benford data keeps its shape. Data that only looks right by accident does not.</p>
+  <label for="mulR">Multiplier: <b class="mono" id="mulV">x 1</b></label>
+  <input type="range" id="mulR" min="-2" max="3" step="0.01" value="0">
+  <div class="presets" id="presets"></div>
+  <label class="inl"><input type="checkbox" id="cmpU"> Compare with a non-Benford dataset (5,000 uniform random numbers, 1 to 9,999)</label>
+  <div class="kpis" id="scKpis" style="margin-top:12px"></div>
+  <div class="chart sm"><canvas id="chScale"></canvas></div>
+</section>
+
+<!-- 4. TAMPER -->
+<section class="card">
+  <h2>4. Tamper lab</h2>
+  <p class="small muted">Manipulate a copy of the data from section 1 and compare before and after. Benford tells you something is off; bunching and last-digit tests tell you where and how.</p>
+  <div class="row">
+    <div><label for="tmSel">Manipulation</label><select id="tmSel"><option value="round">Round the numbers</option><option value="thr">Threshold inflation</option><option value="fab">Fabricate some rows</option></select></div>
+    <div class="p p-round"><label for="rUnit">Round to nearest</label><select id="rUnit"><option>10</option><option selected>100</option><option>1000</option></select></div>
+    <div class="p p-thr hidden"><label for="tT">Threshold</label><input id="tT" type="number" value="5000" min="1"></div>
+    <div class="p p-thr hidden"><label for="tW">Window below it (%)</label><input id="tW" type="number" value="10" min="1" max="50"></div>
+    <div class="p p-fab hidden"><label for="fP">Share of rows replaced (%)</label><input id="fP" type="number" value="10" min="1" max="100"></div>
+    <div class="p p-fab hidden"><label for="fM">Invented numbers look like</label><select id="fM"><option value="human">Human-like (prefers 3 to 7)</option><option value="uniform">Uniform random 100 to 99,999</option></select></div>
+  </div>
+  <div class="presets p p-thr hidden" id="thrPre"><span class="small muted" style="align-self:center">Presets:</span></div>
+  <div class="goal small" id="tmNote" style="margin:12px 0"></div>
+  <div class="kpis" id="tmKpis"></div>
+  <div class="tabs" id="tmTabs"><button data-t="first" class="on">First digit chart</button><button data-t="last">Last digit chart</button></div>
+  <div class="chart sm"><canvas id="chTm"></canvas></div>
+  <div class="p p-thr hidden" style="margin-top:18px"><h3>Bunching histogram: counts around the threshold</h3>
+    <div class="chart sm"><canvas id="chBunch"></canvas></div>
+    <p class="small muted">40 bins covering 20% below to 20% above the threshold. The tampered data has a hole just below and a spike just above.</p></div>
+</section>
+
+<!-- 5. GROWTH -->
+<section class="card">
+  <h2>5. Why growth makes Benford</h2>
+  <p class="small muted">A quantity grows at r% a year from 1,000 to 10,000. How long does it spend with each leading digit? Years with first digit d = log(1 + 1/d) / log(1 + r). As a share of the whole trip that is log10(1 + 1/d), whatever r is. This is the same calculation as NPER in Excel.</p>
+  <div class="row"><div style="max-width:220px"><label for="gR">Growth rate per year (%)</label><input id="gR" type="number" value="12" min="0.1" max="500" step="0.5"></div>
+    <div class="small"><b id="gTot"></b></div></div>
+  <div class="grid2" style="margin-top:10px"><div class="chart sm"><canvas id="chGrow"></canvas></div><div class="scroll"><table id="gTbl"></table></div></div>
+</section>
+
+<!-- 6. NOTES -->
+<details><summary>Teaching notes: where this comes from</summary>
+  <p><b>Newcomb, 1881.</b> Simon Newcomb noticed that the early pages of books of logarithm tables (numbers starting with 1) were more worn than the later ones, and proposed that the probability of a leading digit d is log10(1 + 1/d).</p>
+  <p><b>Benford, 1938.</b> Frank Benford, a General Electric physicist, rediscovered it and tested 20,229 observations from 20 different datasets (rivers, populations, addresses, physical constants and more).</p>
+  <p><b>Scale invariance.</b> Pinkham (1961) showed that if a digit law does not depend on the units of measurement, it must be the logarithmic law. That is what section 3 shows.</p>
+  <p><b>Forensic accounting.</b> Mark Nigrini popularised digit tests for auditors in the 1990s. They work on data spanning several orders of magnitude and not constrained by caps or assigned numbers (phone numbers, check numbers). A deviation is a reason to look closer, not proof of fraud.</p>
+</details>
+</div>
+
+<script>
+const B = window.BENFORD, $ = (id) => document.getElementById(id);
+const GREEN = "#00533e", GOLD = "#f2b632", INK = "#18201d", GREY = "#9aa8a2";
+const fmt = (x) => Number(x).toLocaleString("en-US");
+const fmtP = (p) => p < 1e-4 ? "< 0.0001" : p.toFixed(4);
+const fmtMul = (m) => m >= 100 ? m.toFixed(0) : m >= 1 ? Number(m.toPrecision(4)).toString() : Number(m.toPrecision(3)).toString();
+let census = null, base = { values: [], label: "", excluded: 0 }, seed = B.randomSeed(), curTest = "first", mul = 1, tmTest = "first", ownTable = null;
+
+// ---------- chart helper ----------
+function mkChart(id, labels, series, opts) {
+  opts = opts || {};
+  const ds = series.map((s) => s.line
+    ? { type: "line", label: s.label, data: s.data, borderColor: INK, backgroundColor: INK, borderWidth: 1.5, pointRadius: 3, pointStyle: "rectRot", tension: 0, order: 0 }
+    : { type: "bar", label: s.label, data: s.data, backgroundColor: s.color, order: 1 });
+  return new Chart($(id), { data: { labels, datasets: ds }, options: { responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: { legend: { position: "bottom" }, tooltip: { callbacks: { label: (c) => c.dataset.label + ": " + (opts.count ? fmt(c.parsed.y) : c.parsed.y.toFixed(2) + "%") } } },
+    scales: { y: { beginAtZero: true, title: { display: true, text: opts.ytitle || "% of numbers" } }, x: { title: { display: !!opts.xtitle, text: opts.xtitle || "" }, ticks: { maxRotation: 0, autoSkip: true } } } } });
+}
+function setChart(ch, labels, series) { ch.data.labels = labels; series.forEach((s, i) => { ch.data.datasets[i].data = s.data; if (s.label) ch.data.datasets[i].label = s.label; }); ch.update(); }
+const pct = (a) => a.map((v) => v * 100);
+const charts = {};
+
+// ---------- 1. data ----------
+function cenFilter() {
+  const col = $("colSel").value, lvl = $("lvlSel").value, st = $("stSel").value;
+  const raw = [];
+  for (const r of census) {
+    if (lvl !== "all" && r.sumlev !== lvl && r.sumlev !== String(+lvl)) continue;
+    if (st && r.state !== st) continue;
+    raw.push(r[col]);
+  }
+  return raw;
+}
+function refreshData() {
+  let raw, label;
+  if ($("dsSel").value === "census") {
+    if (!census) return;
+    raw = cenFilter();
+    label = "US Census, " + $("colSel").selectedOptions[0].text + ", " + $("lvlSel").selectedOptions[0].text + ($("stSel").value ? ", " + $("stSel").value : "");
+  } else {
+    if (!ownTable || !ownTable.columns.length) { base = { values: [], label: "Your data", zero: 0, missing: 0, excluded: 0 }; $("nUsed").textContent = "No numbers yet."; $("exNote").textContent = ""; renderAll(); return; }
+    raw = ownTable.columns[+$("ownColSel").value || 0].values; label = "Your data";
+  }
+  const c = B.clean(raw);
+  base = { values: c.values, label, zero: c.zero, missing: c.missing, excluded: c.excluded };
+  $("nUsed").textContent = "n = " + fmt(c.values.length) + " numbers used";
+  $("exNote").textContent = c.excluded ? "(" + fmt(c.excluded) + " excluded: " + fmt(c.zero) + " zero, " + fmt(c.missing) + " blank or non-numeric such as \"A\" = no count)" : "(none excluded)";
+  renderAll();
+}
+function syncPicker() {
+  const own = $("dsSel").value === "own";
+  document.querySelectorAll(".cen").forEach((e) => e.classList.toggle("hidden", own));
+  document.querySelector(".own").classList.toggle("hidden", !own);
+  refreshData();
+}
+function loadOwn(text) {
+  ownTable = B.parseTable(text);
+  const cols = ownTable.columns;
+  $("ownColSel").innerHTML = cols.map((c, i) => `<option value="${i}">${c.name.replace(/[<&"]/g, "")}</option>`).join("");
+  document.querySelector(".ownCol").classList.toggle("hidden", cols.length < 2);
+  refreshData();
+}
+let ownT; $("ownTxt").addEventListener("input", () => { clearTimeout(ownT); ownT = setTimeout(() => loadOwn($("ownTxt").value), 250); });
+$("ownFile").addEventListener("change", (e) => { const f = e.target.files[0]; if (!f) return; f.text().then((t) => { $("ownTxt").value = t.length > 200000 ? "" : t; loadOwn(t); }); });
+$("ownColSel").onchange = refreshData;
+["dsSel"].forEach((i) => $(i).onchange = syncPicker);
+["colSel", "lvlSel", "stSel"].forEach((i) => $(i).onchange = refreshData);
+
+// ---------- 2. digit tests ----------
+const DESC = {
+  first: "Benford expects 1 about 30.1% of the time and 9 only 4.6%. MAD limits (Nigrini): under 0.006 close, to 0.012 acceptable, to 0.015 marginal, above that nonconformity.",
+  second: "Second digits are much flatter than first digits: 0 about 12.0%, 9 about 8.5%. MAD limits: 0.008 / 0.010 / 0.012.",
+  two: "The first two digits together (10 to 99). A sharper microscope, but needs a lot of data. MAD limits: 0.0012 / 0.0018 / 0.0022.",
+  last: "Last digit of numbers 10 and above. Natural data has uniform last digits (10% each), so heaps on 0 and 5 reveal rounding or invented numbers. Only chi-square is reported."
+};
+function renderDigits() {
+  const a = B.analyze(base.values, curTest), T = B.TESTS[curTest];
+  $("testDesc").textContent = DESC[curTest];
+  const kp = (k, v) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  $("kpis").innerHTML = kp("n used", fmt(a.n)) + kp("Chi-square", a.n ? a.chi2.toFixed(1) : "-") + kp("df", a.df) + kp("p-value", a.n ? fmtP(a.p) : "-") + kp("MAD", a.n ? a.mad.toFixed(5) : "-");
+  const vd = $("vd"), vi = a.verdict ? B.VERDICTS.indexOf(a.verdict) : -1;
+  vd.className = "vd" + (vi >= 0 ? " c" + vi : "");
+  vd.textContent = !a.n ? "No numbers to analyze." : a.verdict ? a.verdict + " with Benford's Law (MAD " + a.mad.toFixed(5) + ")" : "Compare with uniform 10% per digit (chi-square p = " + fmtP(a.p) + ", MAD " + a.mad.toFixed(5) + ")";
+  const lab = a.digits.map(String), exp = curTest === "last" ? "Uniform expected" : "Benford expected";
+  const ser = [{ label: "Actual %", data: pct(a.props), color: GREEN }, { label: exp, data: pct(a.expected), line: true }];
+  if (!charts.main) charts.main = mkChart("chMain", lab, ser, { xtitle: "Digit" }); else { charts.main.data.datasets[1].label = exp; setChart(charts.main, lab, ser); }
+  $("tbl").innerHTML = "<tr><th>Digit</th><th>Count</th><th>Actual %</th><th>Expected %</th><th>z</th></tr>" +
+    a.digits.map((d, i) => `<tr class="${a.z[i] > 1.96 ? "hl" : ""}"><td>${d}</td><td>${fmt(a.counts[i])}</td><td>${(a.props[i] * 100).toFixed(2)}</td><td>${(a.expected[i] * 100).toFixed(2)}</td><td>${a.z[i].toFixed(2)}</td></tr>`).join("");
+}
+$("tabs").onclick = (e) => { const t = e.target.dataset && e.target.dataset.t; if (!t) return; curTest = t; [...$("tabs").children].forEach((b) => b.classList.toggle("on", b.dataset.t === t)); renderDigits(); };
+
+// ---------- 3. scale ----------
+const PRESETS = [["x 2", 2], ["x π", Math.PI], ["x 420", 420], ["people → thousands of people (x 0.001)", 0.001], ["x 1.609 (miles → km)", 1.609], ["Random multiplier", "rand"], ["Reset x 1", 1]];
+$("presets").innerHTML = PRESETS.map((p, i) => `<button class="ghost sm" data-i="${i}">${p[0]}</button>`).join("");
+$("presets").onclick = (e) => {
+  const i = e.target.dataset && e.target.dataset.i; if (i == null) return;
+  let m = PRESETS[i][1]; if (m === "rand") m = Math.pow(10, B.seeded(seed + Date.now() % 100000)() * 5 - 2);
+  setMul(m);
+};
+function setMul(m) { mul = Math.min(1000, Math.max(0.01, m)); $("mulR").value = Math.log10(mul).toFixed(3); renderScale(); }
+$("mulR").oninput = () => { mul = Math.pow(10, +$("mulR").value); renderScale(); };
+$("cmpU").onchange = () => { renderScale(); };
+function renderScale() {
+  $("mulV").textContent = "x " + fmtMul(mul);
+  const a0 = B.analyze(base.values, "first"), a1 = B.analyze(B.scale(base.values, mul), "first"), lab = a1.digits.map(String);
+  const cmp = $("cmpU").checked, u = B.uniformData(5000, seed), u0 = B.analyze(u, "first"), u1 = B.analyze(B.scale(u, mul), "first");
+  const kp = (k, v) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  let k = kp(base.label.split(",")[0] + " MAD at x 1", a0.n ? a0.mad.toFixed(5) : "-") + kp("MAD at x " + fmtMul(mul), a1.n ? a1.mad.toFixed(5) : "-") + kp("Verdict now", a1.verdict || "-");
+  if (cmp) k += kp("Uniform MAD at x 1", u0.mad.toFixed(5)) + kp("Uniform MAD at x " + fmtMul(mul), u1.mad.toFixed(5));
+  $("scKpis").innerHTML = k;
+  const ser = [{ label: "Your data x " + fmtMul(mul) + " (%)", data: pct(a1.props), color: GREEN }];
+  if (cmp) ser.push({ label: "Uniform random x " + fmtMul(mul) + " (%)", data: pct(u1.props), color: GOLD });
+  ser.push({ label: "Benford expected", data: pct(a1.expected), line: true });
+  if (charts.scale && charts.scale.data.datasets.length !== ser.length) { charts.scale.destroy(); charts.scale = null; }
+  if (!charts.scale) charts.scale = mkChart("chScale", lab, ser, { xtitle: "First digit" }); else setChart(charts.scale, lab, ser);
+}
+
+// ---------- 4. tamper ----------
+const TNOTE = {
+  round: "Numbers get rounded (think estimates entered by hand). The last-digit test lights up immediately: every number ends in 0. The first digit shifts only a little, mostly for small numbers. Numbers that round to zero are dropped.",
+  thr: "Every value within the window just below the threshold is pushed to just above it (for example, a place reports 5,010 people to cross an eligibility line). The first-digit test barely notices, but the bunching histogram shows the hole below and the pile above.",
+  fab: "A share of the rows is replaced by invented numbers. People pick digits too evenly (and avoid 1 and 9), so the first-digit test flags it. It does not say which rows are fake."
+};
+function tamper() {
+  const rng = B.seeded(seed * 7 + 3), v = base.values, kind = $("tmSel").value;
+  if (kind === "round") return { values: B.roundTo(v, +$("rUnit").value), info: "" };
+  if (kind === "thr") { const T = +$("tT").value || 5000, w = Math.min(0.5, Math.max(0.001, (+$("tW").value || 10) / 100)), r = B.thresholdInflate(v, T, w, rng); return { values: r.values, info: fmt(r.moved) + " values pushed above " + fmt(T) + ".", T }; }
+  const r = B.fabricate(v, Math.min(1, Math.max(0.01, (+$("fP").value || 10) / 100)), $("fM").value, rng); return { values: r.values, info: fmt(r.replaced) + " rows replaced with invented numbers." };
+}
+function renderTamper() {
+  const kind = $("tmSel").value;
+  document.querySelectorAll(".p").forEach((e) => e.classList.toggle("hidden", !e.classList.contains("p-" + kind)));
+  $("tmNote").textContent = TNOTE[kind];
+  if (!base.values.length) return;
+  const t = tamper(), kp = (k, v, cls) => `<div class="kpi ${cls || ""}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  const f0 = B.analyze(base.values, "first"), f1 = B.analyze(t.values, "first"), l0 = B.analyze(base.values, "last"), l1 = B.analyze(t.values, "last");
+  $("tmKpis").innerHTML = kp("First digit MAD", f0.mad.toFixed(5) + " → " + f1.mad.toFixed(5)) + kp("First digit verdict", f1.verdict.replace(" conformity", ""), "") +
+    kp("First digit chi-square", f0.chi2.toFixed(0) + " → " + f1.chi2.toFixed(0)) + kp("Last digit chi-square", fmt(Math.round(l0.chi2)) + " → " + fmt(Math.round(l1.chi2))) + kp("Last digit MAD", l0.mad.toFixed(4) + " → " + l1.mad.toFixed(4)) + (t.info ? kp("Changed", t.info) : "");
+  const A = tmTest === "first" ? [f0, f1] : [l0, l1], lab = A[0].digits.map(String), exp = tmTest === "first" ? "Benford expected" : "Uniform expected";
+  const ser = [{ label: "Before %", data: pct(A[0].props), color: GREY }, { label: "After %", data: pct(A[1].props), color: GOLD }, { label: exp, data: pct(A[0].expected), line: true }];
+  if (!charts.tm) charts.tm = mkChart("chTm", lab, ser, { xtitle: tmTest === "first" ? "First digit" : "Last digit" });
+  else { charts.tm.options.scales.x.title.text = tmTest === "first" ? "First digit" : "Last digit"; charts.tm.data.datasets[2].label = exp; setChart(charts.tm, lab, ser); }
+  if (kind === "thr") {
+    const T = t.T, b0 = B.bunching(base.values, T), b1 = B.bunching(t.values, T), bl = b0.edges.map((e) => fmt(Math.round(e)));
+    const bs = [{ label: "Before (count)", data: b0.counts, color: GREY }, { label: "After (count)", data: b1.counts, color: GOLD }];
+    if (!charts.bunch) charts.bunch = mkChart("chBunch", bl, bs, { count: true, ytitle: "Number of values", xtitle: "Value (bin start; threshold " + fmt(T) + ")" });
+    else { charts.bunch.options.scales.x.title.text = "Value (bin start; threshold " + fmt(T) + ")"; setChart(charts.bunch, bl, bs); }
+  }
+}
+$("tmTabs").onclick = (e) => { const t = e.target.dataset && e.target.dataset.t; if (!t) return; tmTest = t; [...$("tmTabs").children].forEach((b) => b.classList.toggle("on", b.dataset.t === t)); renderTamper(); };
+["tmSel", "rUnit", "tT", "tW", "fP", "fM"].forEach((i) => $(i).addEventListener("input", () => { if (i === "tmSel") tmTest = $("tmSel").value === "round" ? "last" : "first", [...$("tmTabs").children].forEach((b) => b.classList.toggle("on", b.dataset.t === tmTest)); renderTamper(); }));
+[2000, 5000, 10000, 20000].forEach((T) => { const b = document.createElement("button"); b.className = "ghost sm"; b.textContent = fmt(T); b.onclick = () => { $("tT").value = T; renderTamper(); }; $("thrPre").appendChild(b); });
+
+// ---------- 5. growth ----------
+function renderGrowth() {
+  const r = Math.max(0.001, (+$("gR").value || 12) / 100), g = B.growth(r);
+  $("gTot").textContent = "1,000 to 10,000 takes " + g.total.toFixed(1) + " years at " + (r * 100) + "% growth.";
+  $("gTbl").innerHTML = "<tr><th>First digit</th><th>Years with it</th><th>Share of time</th><th>Benford</th></tr>" +
+    g.rows.map((x) => `<tr><td>${x.d}</td><td>${x.years.toFixed(2)}</td><td>${(x.share * 100).toFixed(2)}%</td><td>${(x.benford * 100).toFixed(2)}%</td></tr>`).join("");
+  const lab = g.rows.map((x) => String(x.d)), ser = [{ label: "Share of time %", data: g.rows.map((x) => x.share * 100), color: GREEN }, { label: "Benford expected", data: g.rows.map((x) => x.benford * 100), line: true }];
+  if (!charts.grow) charts.grow = mkChart("chGrow", lab, ser, { xtitle: "First digit", ytitle: "% of time" }); else setChart(charts.grow, lab, ser);
+}
+$("gR").addEventListener("input", renderGrowth);
+
+// ---------- wiring ----------
+function renderAll() { renderDigits(); renderScale(); renderTamper(); }
+function setSeed(s) { seed = s; $("seedv").textContent = s; }
+$("reshuffle").onclick = () => { setSeed(B.randomSeed()); renderScale(); renderTamper(); };
+setSeed(seed); renderGrowth(); tmTest = "last";
+[...$("tmTabs").children].forEach((b) => b.classList.toggle("on", b.dataset.t === tmTest));
+fetch("data/us_census_2017.csv?v=2").then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); }).then((t) => {
+  census = B.parseCensus(t);
+  const states = [...new Set(census.map((r) => r.state))].sort();
+  $("stSel").innerHTML = '<option value="">All states</option>' + states.map((s) => `<option>${s}</option>`).join("");
+  refreshData();
+}).catch((e) => { $("loadErr").textContent = "Could not load the census file (" + e.message + "). Open the page from the website or a local web server, not as a file. You can still paste your own numbers."; $("nUsed").textContent = "No data loaded."; });
+</script>
+</body>
+</html>
