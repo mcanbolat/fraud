@@ -75,21 +75,21 @@
     const kp = [["Students", subs.length], ["Pooled numbers", pooled.length], ["Class MAD (first digit)", DK.f(a.mad, 4)], ["Class verdict", vtxt(a.verdict)]];
     if (ce) kp.push(["US Census MAD", DK.f(ce.mad, 4)], ["Census verdict", vtxt(ce.verdict)]);
     let h = DK.kpis(kp);
-    h += `<div class="grid2">` + DK.card("First digit: class vs Benford vs US Census", DK.canvas("cFirst", 300) +
+    h += `<div class="grid2">` + DK.card("First digit: class vs expected vs US Census", DK.canvas("cFirst", 300) +
       `<p class="small muted" style="margin:6px 0 0">${censusErr ? `Census data could not be loaded (${DK.esc(censusErr)}).` : census ? `US Census: ${census.values.length.toLocaleString("en-US")} places (2010 population, zero or missing excluded).` : "Loading US Census data..."}</p>`) +
       DK.card("How close? (class pooled vs census)", `<table><tr><th></th><th>MAD</th><th>Verdict (Nigrini)</th><th>Chi-square</th></tr>
          <tr><td>Class (invented), n = ${pooled.length}</td><td>${DK.f(a.mad, 4)}</td><td>${vtxt(a.verdict)}</td><td class="small">${chi(a)}</td></tr>
          <tr><td>US Census, n = ${ce ? census.values.length.toLocaleString("en-US") : "…"}</td><td>${ce ? DK.f(ce.mad, 4) : "–"}</td><td>${ce ? vtxt(ce.verdict) : "–"}</td><td class="small">${ce ? chi(ce) : ""}</td></tr></table>
-         <p class="small muted" style="margin:8px 0 0">MAD (mean absolute deviation of the 9 digit shares from Benford) is the better yardstick: with a huge sample chi-square rejects almost anything, even real data. Nigrini's bands for the first digit: below 0.006 close, to 0.012 acceptable, to 0.015 marginal, above 0.015 nonconformity.</p>`) + `</div>`;
+         <p class="small muted" style="margin:8px 0 0">MAD (mean absolute deviation of the 9 digit shares from the expected pattern) is the better yardstick: with a huge sample chi-square rejects almost anything, even real data. Nigrini's bands for the first digit: below 0.006 close, to 0.012 acceptable, to 0.015 marginal, above 0.015 nonconformity.</p>`) + `</div>`;
     if (!revealed) return h;
     const la = B.analyze(pooled, "last");
     const mode = T.modeDigit(ps.firstCounts, 1), cMed = census ? census.median : null;
-    h += DK.kpis([["Most common first digit", mode == null ? "–" : mode], ["Start with 1 (class / Benford)", `${DK.pct(ps.start1)} / 30%`],
+    h += DK.kpis([["Most common first digit", mode == null ? "–" : mode], ["Start with 1 (class / expected)", `${DK.pct(ps.start1)} / 30%`],
       ["End in 0", DK.pct(ps.end0) + " (expect ~10%)"], ["End in 0 or 5", DK.pct(ps.end05) + " (expect ~20%)"],
       ["Median invented", T.fmt(ps.median)], ["Median census", cMed == null ? "–" : T.fmt(cMed)]]);
     h += `<div class="grid2">` + DK.card("Last digit: class vs expected", DK.canvas("cLast", 280) +
       `<p class="small muted" style="margin:6px 0 0">Real counts end in every digit about equally (about 10% each). Invented numbers heap on 0 and 5. Last-digit chi-square: ${chi(la)}.</p>`) +
-      DK.card("Who faked best?", `<p class="small muted" style="margin:0 0 8px">Students sorted by first-digit MAD (lowest = closest to Benford). With only ${D.n} numbers each, one student's verdict is noisy; the pooled class is the stronger test.</p>${studentTable(subs)}`) + `</div>`;
+      DK.card("Who faked best?", `<p class="small muted" style="margin:0 0 8px">Students sorted by first-digit MAD (lowest = closest to real data). With only ${D.n} numbers each, one student's verdict is noisy; the pooled class is the stronger test.</p>${studentTable(subs)}`) + `</div>`;
     return h;
   }
 
@@ -105,13 +105,13 @@
     const pc = (x) => +(x * 100).toFixed(2);
     const ds = [{ label: `Class invented (n=${a.n})`, data: a.props.map(pc), backgroundColor: FAKE, order: 2 }];
     if (ce) ds.push({ label: "US Census (actual)", data: ce.props.map(pc), backgroundColor: CEN, order: 2 });
-    ds.push({ label: "Benford expected", type: "line", data: a.expected.map(pc), borderColor: BEN, backgroundColor: BEN, borderWidth: 2, pointRadius: 4, order: 1 });
+    ds.push({ label: "Expected for real data", type: "line", data: a.expected.map(pc), borderColor: BEN, backgroundColor: BEN, borderWidth: 2, pointRadius: 4, order: 1 });
     const opts = (xt) => ({ scales: { x: { title: { display: true, text: xt } }, y: { beginAtZero: true, ticks: { callback: (v) => v + "%" }, title: { display: true, text: "% of numbers" } } } });
     DK.chart($("cFirst"), { type: "bar", data: { labels: a.digits, datasets: ds }, options: opts("First digit") });
     const la = B.analyze(pooled, "last");
     if ($("cLast")) DK.chart($("cLast"), { type: "bar", data: { labels: la.digits, datasets: [
       { label: "Class invented", data: la.props.map(pc), backgroundColor: FAKE, order: 2 },
-      { label: "Expected (Benford k-th digit law)", type: "line", data: la.expected.map(pc), borderColor: BEN, backgroundColor: BEN, borderWidth: 2, pointRadius: 4, order: 1 }] }, options: opts("Last digit") });
+      { label: "Expected for real data", type: "line", data: la.expected.map(pc), borderColor: BEN, backgroundColor: BEN, borderWidth: 2, pointRadius: 4, order: 1 }] }, options: opts("Last digit") });
   }
 
   function csvRows(session, data) {

@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <script>/* auto-refresh when a newer version is published */
-(function(){var V="4";fetch("../../version.txt?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(v){v=v.trim();if(v&&v!==V){var k="fraud_reload_"+v;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,1)}catch(e){}location.reload()}}).catch(function(){})})();</script>
+(function(){var V="5";fetch("../../version.txt?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(v){v=v.trim();if(v&&v!==V){var k="fraud_reload_"+v;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,1)}catch(e){}location.reload()}}).catch(function(){})})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Benford's Law — Fraud Analytics</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../fraud.css?v=4">
-<script src="../../vendor/chart.umd.min.js?v=4"></script>
-<script src="benford.js?v=4"></script>
+<link rel="stylesheet" href="../../fraud.css?v=5">
+<script src="../../vendor/chart.umd.min.js?v=5"></script>
+<script src="benford.js?v=5"></script>
 <style>
   .page{max-width:1100px;margin:0 auto;padding:16px 20px}
   .row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
@@ -46,7 +46,9 @@
 <section class="card">
   <h2>1. Choose the data</h2>
   <div class="row">
-    <div><label for="dsSel">Dataset</label><select id="dsSel"><option value="census">US Census population counts</option><option value="own">Paste your own numbers</option></select></div>
+    <div><label for="dsSel">Dataset</label><select id="dsSel"><option value="census">US Census population counts</option></select></div>
+    <div class="gen hidden"><label for="genCol">Column</label><select id="genCol"></select></div>
+    <div class="gen hidden"><label for="genGrp">Subset</label><select id="genGrp"></select></div>
     <div class="cen"><label for="colSel">Column</label><select id="colSel"><option value="pop2010">Census 2010 count</option><option value="pop2017">Estimate 2017</option></select></div>
     <div class="cen"><label for="lvlSel">Geography level</label><select id="lvlSel">
       <option value="all">All rows</option><option value="162">Incorporated places (162)</option><option value="061">Towns / MCDs (061)</option><option value="050">Counties (050)</option><option value="040">States (040)</option></select></div>
@@ -60,6 +62,7 @@
   </div>
   <p class="small" style="margin:10px 0 0"><b id="nUsed">Loading data...</b> <span class="muted" id="exNote"></span></p>
   <p class="small muted cen" style="margin:4px 0 0">Source: US Census Bureau subcounty population estimates (sub-est2017_all). "All rows" mixes geography levels, so some places are counted more than once (for example a city and its place-part within a county). That is fine for a digit test, but pick a single level for a clean count.</p>
+  <p class="small muted gen hidden" id="genNote" style="margin:4px 0 0"></p>
   <div class="err" id="loadErr"></div>
 </section>
 
@@ -153,6 +156,43 @@ const pct = (a) => a.map((v) => v * 100);
 const charts = {};
 
 // ---------- 1. data ----------
+// Extra datasets: CSV files in data/ (lengths only, no texts) and two generated mathematical sequences.
+const DATASETS = {
+  nih: { label: "NIH contract amounts (US$)", file: "data/nih_contracts.csv", cols: [["amount", "Contract amount"]], group: ["naics", "NAICS code"],
+         note: "Contract awards of the US National Institutes of Health: 5,561 amounts." },
+  classics: { label: "Classic books (Project Gutenberg)", file: "data/classics.csv",
+         cols: [["words", "Words"], ["characters", "Characters"], ["sentences", "Sentences"], ["syllables", "Syllables"], ["polysyllables", "Polysyllables"], ["difficult_words", "Difficult words"], ["downloads", "Downloads"]],
+         note: "About 1,000 classic books from Project Gutenberg: counts of words, characters, sentences, and downloads." },
+  shakespeare: { label: "Shakespeare: line lengths", file: "data/shakespeare_lines.csv", cols: [["line_length", "Characters per line"]], group: ["play", "Play"],
+         note: "Length in characters of every line in Shakespeare’s plays (111,396 lines, stage directions included)." },
+  bible: { label: "Bible: verse lengths", file: "data/bible_verses.csv", cols: [["verse_length", "Characters per verse"]],
+         note: "Length in characters of each of the 31,102 verses of an English Bible translation." },
+  qar: { label: "Quran (Arabic): verse lengths", file: "data/quran_arabic_verses.csv", cols: [["verse_length", "Characters per verse"]],
+         note: "Length in characters (diacritics included) of each of the 6,236 verses of the Quran in Arabic." },
+  qen: { label: "Quran (English): verse lengths", file: "data/quran_english_verses.csv", cols: [["verse_length", "Characters per verse"]],
+         note: "Length in characters of each of the 6,236 verses of an English translation of the Quran." },
+  pow2: { label: "Powers of 2 (2¹ to 2¹⁰⁰⁰)", gen: () => { const o = []; let x = 1; for (let i = 1; i <= 1000; i++) { x *= 2; o.push(x); } return { v: o }; },
+         cols: [["v", "Value"]], note: "A purely mathematical sequence: 2, 4, 8, 16, ... 2¹⁰⁰⁰." },
+  fib: { label: "Fibonacci numbers (first 1,000)", gen: () => { const o = [1, 1]; while (o.length < 1000) o.push(o[o.length - 1] + o[o.length - 2]); return { v: o }; },
+         cols: [["v", "Value"]], note: "1, 1, 2, 3, 5, 8, 13, ... Each number is the sum of the two before it." }
+};
+const dsCache = {};
+(function addDatasetOptions() {
+  const sel = $("dsSel");
+  for (const k in DATASETS) { const o = document.createElement("option"); o.value = k; o.textContent = DATASETS[k].label; sel.appendChild(o); }
+  const o = document.createElement("option"); o.value = "own"; o.textContent = "Paste your own numbers"; sel.appendChild(o);
+})();
+function loadDataset(k) {
+  if (dsCache[k]) return Promise.resolve(dsCache[k]);
+  const D = DATASETS[k];
+  if (D.gen) { const g = D.gen(); dsCache[k] = { cols: { v: g.v }, groups: null }; return Promise.resolve(dsCache[k]); }
+  return fetch(D.file + "?v=5").then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); }).then((t) => {
+    const rows = B.parseDelimited(t.replace(/^\uFEFF/, ""), ","), head = rows[0].map((h) => h.trim()), body = rows.slice(1).filter((r) => r.length >= head.length);
+    const cols = {}; for (const [c] of D.cols) { const j = head.indexOf(c); cols[c] = body.map((r) => B.parseNum(r[j])); }
+    let groups = null; if (D.group) { const j = head.indexOf(D.group[0]); groups = body.map((r) => r[j]); }
+    return (dsCache[k] = { cols, groups });
+  });
+}
 function cenFilter() {
   const col = $("colSel").value, lvl = $("lvlSel").value, st = $("stSel").value;
   const raw = [];
@@ -169,6 +209,12 @@ function refreshData() {
     if (!census) return;
     raw = cenFilter();
     label = "US Census, " + $("colSel").selectedOptions[0].text + ", " + $("lvlSel").selectedOptions[0].text + ($("stSel").value ? ", " + $("stSel").value : "");
+  } else if (DATASETS[$("dsSel").value]) {
+    const k = $("dsSel").value, D = DATASETS[k], d = dsCache[k];
+    if (!d) return;
+    const c = $("genCol").value || D.cols[0][0], g = $("genGrp").value;
+    raw = d.cols[c].filter((_, i) => !g || !d.groups || d.groups[i] === g);
+    label = D.label + ", " + $("genCol").selectedOptions[0].text + (g ? ", " + g : "");
   } else {
     if (!ownTable || !ownTable.columns.length) { base = { values: [], label: "Your data", zero: 0, missing: 0, excluded: 0 }; $("nUsed").textContent = "No numbers yet."; $("exNote").textContent = ""; renderAll(); return; }
     raw = ownTable.columns[+$("ownColSel").value || 0].values; label = "Your data";
@@ -180,10 +226,24 @@ function refreshData() {
   renderAll();
 }
 function syncPicker() {
-  const own = $("dsSel").value === "own";
-  document.querySelectorAll(".cen").forEach((e) => e.classList.toggle("hidden", own));
+  const v = $("dsSel").value, own = v === "own", D = DATASETS[v];
+  document.querySelectorAll(".cen").forEach((e) => e.classList.toggle("hidden", v !== "census"));
   document.querySelector(".own").classList.toggle("hidden", !own);
-  refreshData();
+  document.querySelectorAll(".gen").forEach((e) => e.classList.toggle("hidden", !D));
+  if (!D) { refreshData(); return; }
+  $("genCol").innerHTML = D.cols.map(([c, n]) => `<option value="${c}">${n}</option>`).join("");
+  $("genCol").parentElement.classList.toggle("hidden", D.cols.length < 2);
+  $("genNote").textContent = D.note;
+  $("nUsed").textContent = "Loading " + D.label + "...";
+  loadDataset(v).then((d) => {
+    const gw = $("genGrp").parentElement;
+    if (D.group && d.groups) {
+      const gs = [...new Set(d.groups)].filter((x) => x).sort();
+      $("genGrp").innerHTML = '<option value="">All</option>' + gs.map((x) => `<option>${String(x).replace(/[<&"]/g, "")}</option>`).join("");
+      gw.querySelector("label").textContent = D.group[1]; gw.classList.remove("hidden");
+    } else { $("genGrp").innerHTML = ""; gw.classList.add("hidden"); }
+    refreshData();
+  }).catch((e) => { $("loadErr").textContent = "Could not load " + D.label + " (" + e.message + ")."; });
 }
 function loadOwn(text) {
   ownTable = B.parseTable(text);
@@ -196,7 +256,7 @@ let ownT; $("ownTxt").addEventListener("input", () => { clearTimeout(ownT); ownT
 $("ownFile").addEventListener("change", (e) => { const f = e.target.files[0]; if (!f) return; f.text().then((t) => { $("ownTxt").value = t.length > 200000 ? "" : t; loadOwn(t); }); });
 $("ownColSel").onchange = refreshData;
 ["dsSel"].forEach((i) => $(i).onchange = syncPicker);
-["colSel", "lvlSel", "stSel"].forEach((i) => $(i).onchange = refreshData);
+["colSel", "lvlSel", "stSel", "genCol", "genGrp"].forEach((i) => $(i).onchange = refreshData);
 
 // ---------- 2. digit tests ----------
 const DESC = {
@@ -300,7 +360,7 @@ function setSeed(s) { seed = s; $("seedv").textContent = s; }
 $("reshuffle").onclick = () => { setSeed(B.randomSeed()); renderScale(); renderTamper(); };
 setSeed(seed); renderGrowth(); tmTest = "last";
 [...$("tmTabs").children].forEach((b) => b.classList.toggle("on", b.dataset.t === tmTest));
-fetch("data/us_census_2017.csv?v=4").then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); }).then((t) => {
+fetch("data/us_census_2017.csv?v=5").then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); }).then((t) => {
   census = B.parseCensus(t);
   const states = [...new Set(census.map((r) => r.state))].sort();
   $("stSel").innerHTML = '<option value="">All states</option>' + states.map((s) => `<option>${s}</option>`).join("");

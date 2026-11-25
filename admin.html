@@ -3,22 +3,22 @@
 <head>
 <meta charset="utf-8">
 <script>/* auto-refresh when a newer version is published */
-(function(){var V="4";fetch("version.txt?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(v){v=v.trim();if(v&&v!==V){var k="fraud_reload_"+v;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,1)}catch(e){}location.reload()}}).catch(function(){})})();</script>
+(function(){var V="5";fetch("version.txt?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(v){v=v.trim();if(v&&v!==V){var k="fraud_reload_"+v;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,1)}catch(e){}location.reload()}}).catch(function(){})})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fraud Analytics — Instructor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="fraud.css?v=4">
-<script src="vendor/supabase.js?v=4"></script>
-<script src="vendor/chart.umd.min.js?v=4"></script>
-<script src="config.js?v=4"></script>
-<script src="fraud.js?v=4"></script>
-<script src="games.js?v=4"></script>
-<script src="dashkit.js?v=4"></script>
-<script src="games/benford/benford.js?v=4"></script>
+<link rel="stylesheet" href="fraud.css?v=5">
+<script src="vendor/supabase.js?v=5"></script>
+<script src="vendor/chart.umd.min.js?v=5"></script>
+<script src="config.js?v=5"></script>
+<script src="fraud.js?v=5"></script>
+<script src="games.js?v=5"></script>
+<script src="dashkit.js?v=5"></script>
+<script src="games/benford/benford.js?v=5"></script>
 <!-- one model + dashboard per live game, from the catalogue -->
 <script>window.FRAUD_CATALOG.filter(g => g.status === "live" && !g.standalone).forEach(g =>
-  document.write(`<script src="games/${g.key}/model.js?v=4"><\/script><script src="games/${g.key}/dashboard.js?v=4"><\/script>`));</script>
+  document.write(`<script src="games/${g.key}/model.js?v=5"><\/script><script src="games/${g.key}/dashboard.js?v=5"><\/script>`));</script>
 <style>
   .layout{display:grid;grid-template-columns:310px 1fr;gap:18px;max-width:1400px;margin:0 auto;padding:18px}
   @media (max-width:900px){.layout{grid-template-columns:1fr}}
@@ -35,7 +35,7 @@
 </head>
 <body>
 <div class="topbar"><a class="brand" href="./">Fraud Analytics <small>Instructor</small></a>
-  <span class="who"><a href="games/benford/" target="_blank" rel="noopener" style="background:var(--gold);color:var(--ink);font-weight:700;font-size:13px;padding:6px 12px;border-radius:8px;text-decoration:none;margin-right:10px">Benford Analysis ↗</a><span id="who"></span> <button id="btnOut" class="ghost sm hidden" style="color:#fff;border-color:#fff8">Sign out</button></span></div>
+  <span class="who"><a href="games/benford/" target="_blank" rel="noopener" style="background:var(--gold);color:var(--ink);font-weight:700;font-size:13px;padding:6px 12px;border-radius:8px;text-decoration:none;margin-right:10px">Analysis ↗</a><span id="who"></span> <button id="btnOut" class="ghost sm hidden" style="color:#fff;border-color:#fff8">Sign out</button></span></div>
 <div id="demoBanner" class="demo hidden" style="margin:12px 18px 0">Demo mode: nothing is saved, and each session shows simulated students so you can rehearse. Remove <code>?demo</code> from the URL to use real data.</div>
 
 <section id="sLogin" class="card hidden" style="max-width:380px;margin:40px auto">

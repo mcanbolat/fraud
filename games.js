@@ -6,7 +6,7 @@ window.FRAUD_CATALOG = [
     blurb: "A toddler is told to flip a coin 50 times. Did the toddler really flip it, or just make the results up? Submit one sequence and see whether your instructor can tell." },
   { key: "towns", prefix: "TOWN", num: "Game 2", topic: "Digit analysis", title: "Invent a Town", status: "live",
     blurb: "Make up 50 town populations. Can invented numbers pass the test real census data passes?" },
-  { key: "benford", num: "Game 3", topic: "Digit analysis", title: "Benford's Law", status: "live", standalone: true,
-    blurb: "Analyze 80,000 US Census population counts: do first digits follow Benford's Law, what survives rescaling, and which kinds of tampering does it catch?" }
+  { key: "benford", num: "Game 3", topic: "Digit analysis", title: "Digit Analysis", status: "live", standalone: true,
+    blurb: "Analyze 80,000 US Census population counts and other datasets: which first and last digits do real numbers have, what survives rescaling, and which kinds of tampering can be caught?" }
 ];
 window.FRAUD_GAMES = window.FRAUD_GAMES || {};

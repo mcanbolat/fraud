@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <script>/* auto-refresh when a newer version is published */
-(function(){var V="4";fetch("../../version.txt?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(v){v=v.trim();if(v&&v!==V){var k="fraud_reload_"+v;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,1)}catch(e){}location.reload()}}).catch(function(){})})();</script>
+(function(){var V="5";fetch("../../version.txt?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(v){v=v.trim();if(v&&v!==V){var k="fraud_reload_"+v;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,1)}catch(e){}location.reload()}}).catch(function(){})})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Invent a Town — Fraud Analytics</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../../fraud.css?v=4">
-<script src="../../vendor/supabase.js?v=4"></script>
-<script src="../../config.js?v=4"></script>
-<script src="../../fraud.js?v=4"></script>
-<script src="../benford/benford.js?v=4"></script>
-<script src="model.js?v=4"></script>
+<link rel="stylesheet" href="../../fraud.css?v=5">
+<script src="../../vendor/supabase.js?v=5"></script>
+<script src="../../config.js?v=5"></script>
+<script src="../../fraud.js?v=5"></script>
+<script src="../benford/benford.js?v=5"></script>
+<script src="model.js?v=5"></script>
 <style>
   .page{max-width:620px;margin:0 auto;padding:14px}
   .nums{width:100%;font:600 16px/1.5 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
@@ -147,9 +147,9 @@ function resultHtml(mine) {
   return `<div class="card"><h2>Your result</h2>
     <h3>First digits of your ${nums.length} numbers</h3>
     <div class="bars">${rows}</div>
-    <p class="small muted" style="margin:6px 0 0">Purple bar: share of your numbers starting with that digit. Gold tick: what Benford's Law predicts for real data (digit 1 about 30%). Scale: 0 to 50%.</p>
+    <p class="small muted" style="margin:6px 0 0">Purple bar: share of your numbers starting with that digit. Gold tick: what real-world data typically shows (digit 1 about 30%). Scale: 0 to 50%.</p>
     <div class="vd ${cls}">MAD ${a.mad.toFixed(4)}: ${a.verdict}</div>
-    <p class="small muted" style="margin:0">MAD is the average gap between your digit shares and Benford's. Below 0.006 is "close conformity", above 0.015 is "nonconformity". With only ${nums.length} numbers even real data wiggles a lot, so the real test is the <b>whole class pooled together</b>: watch the projector.</p></div>
+    <p class="small muted" style="margin:0">MAD is the average gap between your digit shares and those of real-world data. Below 0.006 is "close conformity", above 0.015 is "nonconformity". With only ${nums.length} numbers even real data wiggles a lot, so the real test is the <b>whole class pooled together</b>: watch the projector.</p></div>
     <div class="card"><h3>Last digits of your numbers</h3>
       <div class="lbars">${lastBars}</div><div class="lab">${s.lastCounts.map((c, i) => `<div>${i}<br><b>${c}</b></div>`).join("")}</div>
       <p class="small" style="margin:8px 0 0">${Math.round(s.end05 * 100)}% of your numbers end in 0 or 5 (gold bars). In real counts about 20% would. People like round numbers.</p></div>`;

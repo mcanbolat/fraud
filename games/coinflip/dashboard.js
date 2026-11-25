@@ -128,7 +128,7 @@
           <li><b>How did mom know?</b> Truly random sequences contain long runs. Invented ones are too "evenly mixed": too many switches, too few long streaks.</li>
           <li><b>Ask the class:</b> what did you do to make your invented sequence look random? What did you look at when guessing?</li>
           <li><b>One simple statistic</b> (longest run) already beats guessing. Combining it with the switch rate does better still.</li>
-          <li><b>Fraud analytics link:</b> fabricated data tends to be "too clean". Checking whether data has the irregularity real processes produce (runs here, leading digits next with Benford's law) is a standard way to flag manipulation.</li>
+          <li><b>Fraud analytics link:</b> fabricated data tends to be "too clean". Checking whether data has the irregularity real processes produce (runs here, leading digits next) is a standard way to flag manipulation.</li>
           <li><b>Caution:</b> a flag is evidence for a closer look, not proof. Some real sequences have no run of 5 (about ${DK.pct(1 - sim.pAtLeast(5))}), and some people fake well.</li></ol>`)}
        ${DK.card("All sequences", tbl)}`;
   }

@@ -32,3 +32,6 @@ Short web games that students play on their phones or laptops while the data is 
 **Adding a game.** Add `games/<key>/` with `index.html`, `model.js` and `dashboard.js` (copy the coinflip game as a template), set its status to `"live"` in `games.js`, and register `window.FRAUD_GAMES.<key>` in its `dashboard.js` (with `render`, `demo`, `csvRows`). Store the student's answer in `fraud_submissions.data`. You don't need to change the tables; the only database change is an optional `elsif s.game = '<key>'` validation branch inside `fraud_submit` in `schema.sql` (re-run the file).
 
 Research use: get IRB approval before publishing data collected in class.
+
+### Datasets on the Digit Analysis page (`games/benford/`)
+US Census (default), NIH contract amounts, ~1,000 Project Gutenberg classics (words, characters, sentences, syllables, downloads), Shakespeare line lengths, Bible verse lengths, Quran verse lengths (Arabic and English), powers of 2 and Fibonacci numbers, or paste your own. Only the numbers (lengths, counts, amounts) are stored in `games/benford/data/`, not the texts. Student-facing pages before the lecture avoid the name "Benford" (hub tile "Digit Analysis", admin link "Analysis").
