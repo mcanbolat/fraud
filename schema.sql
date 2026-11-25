@@ -176,6 +176,24 @@ begin
     end if;
     -- keep only the sequence itself
     p_data := jsonb_build_object('seq', p_data->>'seq');
+  elsif s.game = 'towns' then
+    if p_kind <> 'main' then raise exception 'Bad submission kind.'; end if;
+    v_n := coalesce((s.params->>'n')::int, 50);
+    if jsonb_typeof(p_data->'nums') is distinct from 'array' then
+      raise exception 'Send a list of % town populations.', v_n;
+    end if;
+    if jsonb_array_length(p_data->'nums') <> v_n then
+      raise exception 'You must enter exactly % numbers.', v_n;
+    end if;
+    if exists (select 1 from jsonb_array_elements(p_data->'nums') e
+               where case when jsonb_typeof(e) = 'number'
+                          then (e #>> '{}')::numeric <> trunc((e #>> '{}')::numeric)
+                               or (e #>> '{}')::numeric < 1 or (e #>> '{}')::numeric > 50000000
+                          else true end) then
+      raise exception 'Every number must be a whole number from 1 to 50,000,000.';
+    end if;
+    -- keep only the numbers themselves
+    p_data := jsonb_build_object('nums', p_data->'nums');
   else
     if p_label is not null and char_length(p_label) > 40 then raise exception 'Label too long.'; end if;
   end if;

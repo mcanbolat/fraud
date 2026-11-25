@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>/* auto-refresh when a newer version is published */
+(function(){var V="4";fetch("../../version.txt?"+Date.now(),{cache:"no-store"}).then(function(r){return r.text()}).then(function(v){v=v.trim();if(v&&v!==V){var k="fraud_reload_"+v;try{if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,1)}catch(e){}location.reload()}}).catch(function(){})})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invent a Town — Fraud Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../fraud.css?v=4">
+<script src="../../vendor/supabase.js?v=4"></script>
+<script src="../../config.js?v=4"></script>
+<script src="../../fraud.js?v=4"></script>
+<script src="../benford/benford.js?v=4"></script>
+<script src="model.js?v=4"></script>
+<style>
+  .page{max-width:620px;margin:0 auto;padding:14px}
+  .nums{width:100%;font:600 16px/1.5 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+  .cnt{font-weight:700;font-variant-numeric:tabular-nums}
+  .cnt.good{color:var(--good)} .cnt.bad{color:var(--bad)}
+  .story{border-left:5px solid var(--gold);background:var(--goldsoft);padding:12px 16px;border-radius:8px}
+  .story p{margin:0 0 8px} .story p:last-child{margin:0}
+  .steps{margin:0;padding-left:20px} .steps li{margin-bottom:6px}
+  .conf{background:#eef8f1;border:1px solid var(--good);border-radius:10px;padding:12px 14px}
+  .bad-list{color:var(--bad);font-size:13px;margin-top:6px;word-break:break-word}
+  .bad-list code{background:#fbeceb;border-radius:4px;padding:1px 5px}
+  .bars{display:grid;grid-template-columns:22px 1fr 44px;gap:5px 8px;align-items:center;font-size:13px}
+  .bar{position:relative;height:18px;background:var(--soft);border-radius:4px}
+  .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--fake);border-radius:4px}
+  .bar b{position:absolute;top:-3px;bottom:-3px;width:3px;background:var(--gold);border-radius:2px}
+  .lbars{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;align-items:end;height:90px;margin-top:6px}
+  .lbars div{background:var(--fake);border-radius:3px 3px 0 0;min-height:2px}
+  .lbars div.hot{background:var(--gold)}
+  .lab{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;text-align:center;font-size:12px;color:var(--muted)}
+  .vd{font-size:17px;font-weight:700;padding:10px 14px;border-radius:10px;margin:8px 0;border:1px solid var(--rule);background:var(--soft)}
+  .vd.c0{background:#e3f3ea;border-color:var(--good)} .vd.c1{background:#eef6e0;border-color:#8aae3a}
+  .vd.c2{background:#fdf1d3;border-color:var(--gold)} .vd.c3{background:#fbeceb;border-color:var(--bad)}
+  .dbtn{background:transparent;color:var(--muted);border:1px dashed var(--rule);font-size:12px;padding:4px 10px}
+</style>
+</head>
+<body>
+<div class="topbar"><a class="brand" href="../../">Fraud Analytics <small>Game 2 · Invent a Town</small></a><span class="who" id="who"></span></div>
+<div class="page">
+  <div id="demoBanner" class="demo hidden">Demo mode: nothing is saved. <a href="#" id="demoReset">Start over</a> · <button class="dbtn" id="demoRevealBtn">Simulate the instructor's reveal</button></div>
+
+  <section id="gJoin" class="card hidden" style="margin-top:24px">
+    <h2>🏘️ Invent a Town</h2>
+    <p class="muted small">Can made-up numbers pass the test that real census data passes? Join your class session to play.</p>
+    <label for="gCode">Session code</label><input id="gCode" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase">
+    <label for="gNick">Nickname (optional: leave blank to stay anonymous)</label><input id="gNick" maxlength="40" autocomplete="off">
+    <button id="gBtnJoin" class="full" style="margin-top:14px">Join</button>
+    <div class="err" id="gJoinErr"></div>
+  </section>
+
+  <section id="gMain" class="hidden">
+    <div class="card story">
+      <h2 style="margin:0 0 8px">🏘️ Invent a Town</h2>
+      <p>You are a clerk at a statistics office. The records of <b><span class="N">50</span> towns</b> were lost in a flood, and the report is due today. You must fill in the population of every town.</p>
+      <p>Make up <b><span class="N">50</span> believable town populations</b>. Any size is fine, from tiny villages to big cities. <b>Don't use a random number generator, and don't look anything up.</b> Just write what feels realistic.</p>
+    </div>
+
+    <div id="vInput">
+      <div class="card">
+        <h3>Your <span class="N">50</span> numbers</h3>
+        <label for="nums" style="margin-top:0">Type or paste whole numbers, one per line or separated by spaces. Whole numbers from 1 to 50,000,000.</label>
+        <textarea id="nums" class="nums" rows="9" placeholder="3200&#10;870&#10;45000&#10;..." inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="cnt" id="cnt">0/50</span><span class="small" id="msg"></span></div>
+        <div class="bad-list hidden" id="badList"></div>
+        <div class="small muted" style="margin-top:6px">A number written like <b>12,345</b> counts as 12345. To separate two numbers use a space or a new line.</div>
+        <button class="full" id="sub" style="margin-top:12px" disabled>Submit</button>
+        <div class="err" id="err"></div>
+        <div class="small muted" id="why"></div>
+      </div>
+    </div>
+
+    <div id="vDone" class="card hidden">
+      <div class="conf"><b>✔ Submitted.</b> <span id="doneInfo"></span><br>
+        <span class="small">You can change your numbers until the instructor reveals the results. Keep this page open: your results will appear here.</span></div>
+    </div>
+
+    <div id="vResult" class="hidden"></div>
+  </section>
+</div>
+
+<script>
+const $ = FRAUD.$, T = TOWNS, B = BENFORD;
+let st = null, N = T.DEFAULTS.n, poll = null;
+
+FRAUD.setup({ game: "towns", defaults: T.DEFAULTS });
+$("gBtnJoin").onclick = join;
+$("gNick").addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
+$("demoReset").onclick = (e) => { e.preventDefault(); FRAUD.forget(); location.reload(); };
+$("demoRevealBtn").onclick = async () => { FRAUD.demoReveal(); await refresh(); };
+init();
+
+async function init() {
+  if (FRAUD.DEMO) $("demoBanner").classList.remove("hidden");
+  $("gCode").value = FRAUD.urlCode() || (FRAUD.DEMO ? "DEMO" : "");
+  const s = FRAUD.saved(), want = FRAUD.urlCode();
+  let state = null;
+  if (s && (!want || s.code === want)) state = await FRAUD.resume();
+  if (state) load(state);
+  else { show("gJoin"); (want ? $("gNick") : $("gCode")).focus(); }
+}
+function show(id) { ["gJoin", "gMain"].forEach((s) => $(s).classList.toggle("hidden", s !== id)); window.scrollTo(0, 0); }
+async function join() {
+  $("gJoinErr").textContent = ""; $("gBtnJoin").disabled = true;
+  try { load(await FRAUD.join($("gCode").value.trim(), $("gNick").value.trim())); }
+  catch (e) { $("gJoinErr").textContent = e.message; }
+  finally { $("gBtnJoin").disabled = false; }
+}
+
+function load(state) {
+  st = state; N = Number((st.session.params || {}).n) || T.DEFAULTS.n;
+  $("who").textContent = st.nickname + " · " + st.session.code;
+  document.querySelectorAll(".N").forEach((e) => e.textContent = N);
+  show("gMain");
+  const mine = mySub();
+  if (mine && mine.data && Array.isArray(mine.data.nums)) $("nums").value = mine.data.nums.join("\n");
+  update(); paint();
+  clearInterval(poll); poll = setInterval(refresh, 4000);
+}
+async function refresh() {
+  if (!st || document.hidden && !FRAUD.DEMO) return;
+  try { const s = await FRAUD.rpc("fraud_resume", { p_player: st.player_id, p_token: st.token }); st = s; if (s.session.revealed) paint(); }
+  catch (_) { /* transient network error: try again on the next tick */ }
+}
+const mySub = () => (st.submissions || []).find((s) => s.kind === "main") || null;
+
+function paint() {
+  const revealed = st.session.revealed, mine = mySub();
+  $("vInput").classList.toggle("hidden", revealed);
+  $("vDone").classList.toggle("hidden", revealed || !mine);
+  $("vResult").classList.toggle("hidden", !revealed);
+  $("sub").textContent = mine ? "Update my submission" : "Submit";
+  if (mine) $("doneInfo").textContent = "Saved at " + new Date(mine.updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + ".";
+  if (revealed) { clearInterval(poll); $("vResult").innerHTML = resultHtml(mine); }
+}
+
+function resultHtml(mine) {
+  if (!mine || !mine.data || !Array.isArray(mine.data.nums)) return `<div class="card"><h2>The instructor has revealed the results</h2><p>You did not submit your numbers before the reveal, so there is nothing to show for you. Follow along with the class discussion.</p></div>`;
+  const nums = mine.data.nums, s = T.stats(nums), a = s.first, lastMax = Math.max(1, ...s.lastCounts);
+  const cls = ["c0", "c1", "c2", "c3"][B.VERDICTS.indexOf(a.verdict)] || "";
+  const rows = a.digits.map((d, i) => `<div><b>${d}</b></div><div class="bar"><i style="width:${(a.props[i] * 100 / 0.5).toFixed(1)}%"></i><b style="left:${(a.expected[i] * 100 / 0.5).toFixed(1)}%"></b></div><div>${(a.props[i] * 100).toFixed(0)}%</div>`).join("");
+  const lastBars = s.lastCounts.map((c, i) => `<div class="${i === 0 || i === 5 ? "hot" : ""}" style="height:${(c / lastMax * 100).toFixed(0)}%" title="${i}: ${c}"></div>`).join("");
+  return `<div class="card"><h2>Your result</h2>
+    <h3>First digits of your ${nums.length} numbers</h3>
+    <div class="bars">${rows}</div>
+    <p class="small muted" style="margin:6px 0 0">Purple bar: share of your numbers starting with that digit. Gold tick: what Benford's Law predicts for real data (digit 1 about 30%). Scale: 0 to 50%.</p>
+    <div class="vd ${cls}">MAD ${a.mad.toFixed(4)}: ${a.verdict}</div>
+    <p class="small muted" style="margin:0">MAD is the average gap between your digit shares and Benford's. Below 0.006 is "close conformity", above 0.015 is "nonconformity". With only ${nums.length} numbers even real data wiggles a lot, so the real test is the <b>whole class pooled together</b>: watch the projector.</p></div>
+    <div class="card"><h3>Last digits of your numbers</h3>
+      <div class="lbars">${lastBars}</div><div class="lab">${s.lastCounts.map((c, i) => `<div>${i}<br><b>${c}</b></div>`).join("")}</div>
+      <p class="small" style="margin:8px 0 0">${Math.round(s.end05 * 100)}% of your numbers end in 0 or 5 (gold bars). In real counts about 20% would. People like round numbers.</p></div>`;
+}
+
+// ---------------------------------------------------------------- input
+function update() {
+  const { nums, invalid } = T.parse($("nums").value), n = nums.length, ok = n === N && !invalid.length;
+  const cnt = $("cnt"); cnt.textContent = `${n}/${N}`; cnt.className = "cnt " + (ok ? "good" : n > N || invalid.length ? "bad" : "");
+  $("msg").className = "small " + (n > N || invalid.length ? "err" : "muted");
+  $("msg").textContent = invalid.length ? `${invalid.length} entr${invalid.length > 1 ? "ies" : "y"} not counted` : n > N ? `${n - N} too many. Delete some.` : n < N ? `${N - n} to go` : "Count is right.";
+  const bl = $("badList");
+  bl.classList.toggle("hidden", !invalid.length);
+  bl.innerHTML = invalid.length ? "Not accepted: " + invalid.slice(0, 20).map((x) => `<code>${FRAUD.esc(x.token)}</code> (${x.reason})`).join(", ") + (invalid.length > 20 ? ", ..." : "") : "";
+  $("sub").disabled = !ok;
+  $("why").textContent = ok ? "" : `Enter exactly ${N} valid numbers to submit.`;
+}
+$("nums").addEventListener("input", update);
+$("sub").onclick = async () => {
+  const { nums, invalid } = T.parse($("nums").value);
+  if (nums.length !== N || invalid.length) return update();
+  $("sub").disabled = true; $("err").textContent = "";
+  try { st = await FRAUD.submit(st, "main", { nums }, null); paint(); $("vDone").scrollIntoView({ behavior: "smooth", block: "center" }); }
+  catch (e) { $("err").textContent = e.message; if (/revealed|locked/i.test(e.message)) refresh(); }
+  finally { update(); }
+};
+</script>
+</body>
+</html>
